@@ -126,21 +126,8 @@ Adafruit_ADS1115::Adafruit_ADS1115(uint8_t i2cAddress)
 */
 /**************************************************************************/
 void Adafruit_ADS1015::begin() {
-  Wire.begin();
+  Wire.begin(I2C_MASTER, 0x00, WIRE_PINS, I2C_PULLUP_EXT, 400000);
 }
-
-#if defined(ARDUINO_ARCH_ESP8266)
-/**************************************************************************/
-/*!
-    @brief  Sets up the HW (reads coefficients values, etc.)
-            This function should be called if you are using an ESP8266 and
-            have the SDA and SCL pins other than 4 and 5.
-*/
-/**************************************************************************/
-void Adafruit_ADS1015::begin(uint8_t sda, uint8_t scl) {
-  Wire.begin(sda, scl);
-}
-#endif
 
 /**************************************************************************/
 /*!
