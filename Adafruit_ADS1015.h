@@ -22,13 +22,20 @@
 #ifndef _ADAFRUIT_ADS1X15_H
 #define _ADAFRUIT_ADS1X15_H
 
-#if ARDUINO >= 100
- #include "Arduino.h"
-#else
- #include "WProgram.h"
-#endif
+//#define ADS_POLLING
 
-#include <i2c_t3.h>
+// The ADC input range (or gain) can be changed via the following
+// functions, but be careful never to exceed VDD +0.3V max, or to
+// exceed the upper and lower limits if you adjust the input range!
+// Setting these values incorrectly may destroy your ADC!
+//                                                                ADS1015  ADS1115
+//                                                                -------  -------
+// ads.setGain(GAIN_TWOTHIRDS);  // 2/3x gain +/- 6.144V  1 bit = 3mV      0.1875mV (default)
+// ads.setGain(GAIN_ONE);        // 1x gain   +/- 4.096V  1 bit = 2mV      0.125mV
+// ads.setGain(GAIN_TWO);        // 2x gain   +/- 2.048V  1 bit = 1mV      0.0625mV
+// ads.setGain(GAIN_FOUR);       // 4x gain   +/- 1.024V  1 bit = 0.5mV    0.03125mV
+// ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.25mV   0.015625mV
+// ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
 
 /*=========================================================================
     I2C ADDRESS/BITS
@@ -66,6 +73,8 @@
     #define ADS1X15_REG_CONFIG_MUX_DIFF_0_3 (0x1000)  // Differential P = AIN0, N = AIN3
     #define ADS1X15_REG_CONFIG_MUX_DIFF_1_3 (0x2000)  // Differential P = AIN1, N = AIN3
     #define ADS1X15_REG_CONFIG_MUX_DIFF_2_3 (0x3000)  // Differential P = AIN2, N = AIN3
+    #define ADS1X15_REG_CONFIG_MUX_SINGLE_SHIFT (12)  //
+    #define ADS1X15_REG_CONFIG_MUX_SINGLE_BASE (0x4)  // Single-ended AIN0
     #define ADS1X15_REG_CONFIG_MUX_SINGLE_0 (0x4000)  // Single-ended AIN0
     #define ADS1X15_REG_CONFIG_MUX_SINGLE_1 (0x5000)  // Single-ended AIN1
     #define ADS1X15_REG_CONFIG_MUX_SINGLE_2 (0x6000)  // Single-ended AIN2
@@ -83,7 +92,9 @@
     #define ADS1X15_REG_CONFIG_MODE_CONTIN  (0x0000)  // Continuous conversion mode
     #define ADS1X15_REG_CONFIG_MODE_SINGLE  (0x0100)  // Power-down single-shot mode (default)
 
-    #define ADS1015_REG_CONFIG_DR_MASK      (0x00E0)  
+    #define ADS1X15_REG_CONFIG_DR_MASK      (0x00E0)
+    #define ADS1X15_REG_CONFIG_DR_SHIFT     (5)
+
     #define ADS1015_REG_CONFIG_DR_128SPS    (0x0000)  // 128 samples per second
     #define ADS1015_REG_CONFIG_DR_250SPS    (0x0020)  // 250 samples per second
     #define ADS1015_REG_CONFIG_DR_490SPS    (0x0040)  // 490 samples per second
@@ -175,6 +186,11 @@ typedef enum : uint16_t
     ADS1015_DR_2400SPS         = ADS1015_REG_CONFIG_DR_2400SPS,
     ADS1015_DR_3300SPS         = ADS1015_REG_CONFIG_DR_3300SPS,
 
+	ADS1015_DR_DEFAULT_SPS             = (0x0080)     // 1600 for ADS1015, 128 for ADS1115
+} ads1015SPS_t;
+
+typedef enum : uint16_t
+{
     ADS1115_DR_8SPS            = ADS1115_REG_CONFIG_DR_8SPS,
     ADS1115_DR_16SPS           = ADS1115_REG_CONFIG_DR_16SPS,
     ADS1115_DR_32SPS           = ADS1115_REG_CONFIG_DR_32SPS,
@@ -184,17 +200,20 @@ typedef enum : uint16_t
     ADS1115_DR_475SPS          = ADS1115_REG_CONFIG_DR_475SPS,
     ADS1115_DR_860SPS          = ADS1115_REG_CONFIG_DR_860SPS,
 	
-	DR_DEFAULT_SPS             = (0x0080)     // 1600 for ADS1015, 128 for ADS1115
-} adsSPS_t;
+	ADS1115_DR_DEFAULT_SPS             = (0x0080)     // 1600 for ADS1015, 128 for ADS1115
+} ads1115SPS_t;
 
 class Adafruit_ADS1015
 {
 protected:
    // Instance-specific properties
    uint8_t   m_i2cAddress;
-   uint8_t   m_bitShift;
+//   uint8_t   m_bitShift;
    adsGain_t m_gain                = GAIN_DEFAULT;  /* +/- 6.144V range (limited to VDD +0.3V max!) */
-   adsSPS_t  m_SPS                 = DR_DEFAULT_SPS;
+   uint8_t   m_SPS                 = ADS1015_DR_DEFAULT_SPS;
+   #ifdef ADS_POLLING
+   	   uint32_t m_conversionDelay_us;
+   #endif
 
  public:
   Adafruit_ADS1015(uint8_t i2cAddress = ADS1X15_ADDRESS);
@@ -212,12 +231,12 @@ protected:
   void      startWindowComparator_SingleEnded(uint8_t channel, int16_t lowThreshold, int16_t highThreshold);
   void      startContinuous_SingleEnded(uint8_t channel);
   void      startContinuous_Differential(adsDiffMux_t);
-  int16_t   getLastConversionResults(void);
+  virtual int16_t   getLastConversionResults(void);
   void      setGain(adsGain_t gain);
   adsGain_t getGain(void);
-  void      setSPS(adsSPS_t gain);
-  adsSPS_t  getSPS(void);
-  float     voltsPerBit(void);
+  void      setSPS(ads1015SPS_t gain);
+  ads1015SPS_t  getSPS(void);
+  virtual float     voltsPerBit(void);
   float     readADC_SingleEnded_V(uint8_t);
   float     readADC_Differential_0_1_V(void);
   float     readADC_Differential_0_3_V(void);
@@ -228,7 +247,11 @@ protected:
   void      startContinuous_Differential_1_3(void);
   void      startContinuous_Differential_2_3(void);
   void      waitForConversion();
-
+  virtual int getBitShift() { return ADS1015_CONV_REG_BIT_SHIFT_4; }
+  #ifdef ADS_POLLING
+  	  uint32_t getConversionDelay_us() { return m_conversionDelay_us; }
+  	  void setConversionDelay_us(uint32_t delay) { m_conversionDelay_us = delay; }
+  #endif
  private:
 
 };
@@ -238,6 +261,11 @@ class Adafruit_ADS1115 : public Adafruit_ADS1015
 {
  public:
   Adafruit_ADS1115(uint8_t i2cAddress = ADS1X15_ADDRESS);
+  virtual float     voltsPerBit(void);
+  void              setSPS(ads1115SPS_t gain);
+  ads1115SPS_t      getSPS(void);
+  virtual int       getBitShift() { return ADS1115_CONV_REG_BIT_SHIFT_0; }
+  virtual int16_t   getLastConversionResults(void);
 
  private:
 };

@@ -42,7 +42,11 @@
  #include "WProgram.h"
 #endif
 
-#include <i2c_t3.h>
+#ifdef CORE_TEENSY
+	#include <i2c_t3.h>
+#else
+	#include <Wire.h>
+#endif
 
 #include "Adafruit_ADS1015.h"
 
@@ -106,7 +110,7 @@ static uint16_t readRegister(uint8_t i2cAddress, uint8_t reg) {
 Adafruit_ADS1015::Adafruit_ADS1015(uint8_t i2cAddress) 
 {
    m_i2cAddress = i2cAddress;
-   m_bitShift = ADS1015_CONV_REG_BIT_SHIFT_4;
+//   m_bitShift = ADS1015_CONV_REG_BIT_SHIFT_4;
 }
 
 /**************************************************************************/
@@ -117,7 +121,7 @@ Adafruit_ADS1015::Adafruit_ADS1015(uint8_t i2cAddress)
 Adafruit_ADS1115::Adafruit_ADS1115(uint8_t i2cAddress)
 {
    m_i2cAddress = i2cAddress;
-   m_bitShift = ADS1115_CONV_REG_BIT_SHIFT_0;
+//   m_bitShift = ADS1115_CONV_REG_BIT_SHIFT_0;
 }
 
 /**************************************************************************/
@@ -126,7 +130,11 @@ Adafruit_ADS1115::Adafruit_ADS1115(uint8_t i2cAddress)
 */
 /**************************************************************************/
 void Adafruit_ADS1015::begin() {
-  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 400000);//First I2C
+	#ifdef CORE_TEENSY
+		Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 400000);//First I2C
+	#else
+		Wire.begin();//First I2C
+	#endif
 }
 
 /**************************************************************************/
@@ -154,9 +162,29 @@ adsGain_t Adafruit_ADS1015::getGain()
     @brief  Sets the Samples per Second setting
 */
 /**************************************************************************/
-void Adafruit_ADS1015::setSPS(adsSPS_t SPS)
+void Adafruit_ADS1015::setSPS(ads1015SPS_t SPS)
 {
   m_SPS = SPS;
+	#ifdef ADS_POLLING
+  		static const uint16_t spsArray[] PROGMEM = {128, 250, 490, 920, 1600, 2400, 3300};
+  		m_conversionDelay_us = (1000000UL / pgm_read_word_near(spsArray + (m_SPS>>ADS1X15_REG_CONFIG_DR_SHIFT))) * 1.1; // add 10% as datasheet specified that data rate precision is 10%.
+//printf_uart(F("Adafruit_ADS1115::setDataRate %d m_conversionDelay=%u ms  m_conversionDelay_us=%u us  m_config_sps=%x\n"), sps, m_conversionDelay, m_conversionDelay_us, m_config_sps);
+	#endif
+}
+
+/**************************************************************************/
+/*!
+    @brief  Sets the Samples per Second setting
+*/
+/**************************************************************************/
+void Adafruit_ADS1115::setSPS(ads1115SPS_t SPS)
+{
+	m_SPS = SPS;
+	#ifdef ADS_POLLING
+  		static const uint16_t spsArray[] PROGMEM = {8, 16, 32, 64, 128, 250, 475, 860};
+  		m_conversionDelay_us = (1000000UL / pgm_read_word_near(spsArray + (m_SPS>>ADS1X15_REG_CONFIG_DR_SHIFT))) * 1.1; // add 10% as datasheet specified that data rate precision is 10%.
+//printf_uart(F("Adafruit_ADS1115::setDataRate %d m_conversionDelay=%u ms  m_conversionDelay_us=%u us  m_config_sps=%x\n"), sps, m_conversionDelay, m_conversionDelay_us, m_config_sps);
+	#endif
 }
 
 /**************************************************************************/
@@ -164,9 +192,19 @@ void Adafruit_ADS1015::setSPS(adsSPS_t SPS)
     @brief  Gets the Samples per Second setting
 */
 /**************************************************************************/
-adsSPS_t Adafruit_ADS1015::getSPS()
+ads1015SPS_t Adafruit_ADS1015::getSPS()
 {
-  return m_SPS;
+  return ads1015SPS_t(m_SPS);
+}
+
+/**************************************************************************/
+/*!
+    @brief  Gets the Samples per Second setting
+*/
+/**************************************************************************/
+ads1115SPS_t Adafruit_ADS1115::getSPS()
+{
+  return ads1115SPS_t(m_SPS);
 }
 
 /**************************************************************************/
@@ -175,24 +213,26 @@ adsSPS_t Adafruit_ADS1015::getSPS()
 	        register for single ended operations
 */
 /**************************************************************************/
-uint16_t getSingleEndedConfigBitsForMUX(uint8_t channel) {
-  uint16_t c = 0;
-  switch (channel)
-  {
-    case (0):
-      c = ADS1X15_REG_CONFIG_MUX_SINGLE_0;
-      break;
-    case (1):
-      c = ADS1X15_REG_CONFIG_MUX_SINGLE_1;
-      break;
-    case (2):
-      c = ADS1X15_REG_CONFIG_MUX_SINGLE_2;
-      break;
-    case (3):
-      c = ADS1X15_REG_CONFIG_MUX_SINGLE_3;
-      break;
-  }
-  return c;
+uint16_t getSingleEndedConfigBitsForMUX(uint8_t channel)
+{
+//  uint16_t c = 0;
+//  switch (channel)
+//  {
+//    case (0):
+//      c = ADS1X15_REG_CONFIG_MUX_SINGLE_0;
+//      break;
+//    case (1):
+//      c = ADS1X15_REG_CONFIG_MUX_SINGLE_1;
+//      break;
+//    case (2):
+//      c = ADS1X15_REG_CONFIG_MUX_SINGLE_2;
+//      break;
+//    case (3):
+//      c = ADS1X15_REG_CONFIG_MUX_SINGLE_3;
+//      break;
+//  }
+//  return c;
+	return ((ADS1X15_REG_CONFIG_MUX_SINGLE_BASE + channel) << ADS1X15_REG_CONFIG_MUX_SINGLE_SHIFT); // This version save 72 bytes on my UNO with -O0.
 }
 
 /**************************************************************************/
@@ -224,7 +264,7 @@ int16_t Adafruit_ADS1015::readADC_SingleEnded(uint8_t channel) {
 
   // Set PGA/voltage range
   config |= m_gain;
-  
+
   // Set Samples per Second
   config |= m_SPS;
 
@@ -410,7 +450,7 @@ void Adafruit_ADS1015::startComparator_SingleEnded(uint8_t channel, int16_t high
 
   // Set the high threshold register
   // Shift 12-bit results left 4 bits for the ADS1015
-  writeRegister(m_i2cAddress, ADS1X15_REG_POINTER_HITHRESH, highThreshold << m_bitShift);
+  writeRegister(m_i2cAddress, ADS1X15_REG_POINTER_HITHRESH, highThreshold << getBitShift());
   
   // Set the high threshold register to the default
   writeRegister(m_i2cAddress, ADS1X15_REG_POINTER_LOWTHRESH, ADS1X15_LOW_THRESHOLD_DEFAULT);
@@ -437,28 +477,28 @@ void Adafruit_ADS1015::startWindowComparator_SingleEnded(uint8_t channel, int16_
   uint16_t config = ADS1X15_REG_CONFIG_CQUE_1CONV   | // Comparator enabled and asserts on 1 match
                     ADS1X15_REG_CONFIG_CLAT_LATCH   | // Latching mode
                     ADS1X15_REG_CONFIG_CPOL_ACTVLOW | // Alert/Rdy active low   (default val)
-                    ADS1X15_REG_CONFIG_CMODE_WINDOW | // Window comparator 
+                    ADS1X15_REG_CONFIG_CMODE_WINDOW | // Window comparator
                     ADS1X15_REG_CONFIG_MODE_CONTIN;   // Continuous conversion mode
 
   // Set PGA/voltage range
   config |= m_gain;
-  
+
   // Set Samples per Second
   config |= m_SPS;
-                    
+
   // Set single-ended input channel
   config |= getSingleEndedConfigBitsForMUX(channel);
 
   // Set the high threshold register
   // Shift 12-bit results left 4 bits for the ADS1015
-  writeRegister(m_i2cAddress, ADS1X15_REG_POINTER_HITHRESH, highThreshold << m_bitShift);
-  
+  writeRegister(m_i2cAddress, ADS1X15_REG_POINTER_HITHRESH, highThreshold << getBitShift());
+
   // Set the high threshold register to the default
-  writeRegister(m_i2cAddress, ADS1X15_REG_POINTER_LOWTHRESH, lowThreshold << m_bitShift);
+  writeRegister(m_i2cAddress, ADS1X15_REG_POINTER_LOWTHRESH, lowThreshold << getBitShift());
 
   // Write config register to the ADC
   writeRegister(m_i2cAddress, ADS1X15_REG_POINTER_CONFIG, config);
-  
+
 }
 
 
@@ -597,13 +637,18 @@ void Adafruit_ADS1015::startContinuous_Differential_2_3() {
 /**************************************************************************/
 void Adafruit_ADS1015::waitForConversion()
 {
-  delay(0);                // delay(0) causes a yeild for ESP8266
-  delayMicroseconds(10);   // Slight delay to ensure converstion started.  Probably not needed, but for safety
-  do {
-	  delay(0);            // delay(0) causes a yeild for ESP8266
-	 } 
-	 while (ADS1X15_REG_CONFIG_OS_BUSY == (readRegister(m_i2cAddress, ADS1X15_REG_POINTER_CONFIG) & ADS1X15_REG_CONFIG_OS_MASK));
-            // Stop when the config register OS bit changes to 1
+	delay(0);                // delay(0) causes a yeild for ESP8266
+	delayMicroseconds(10);   // Slight delay to ensure converstion started.  Probably not needed, but for safety
+	#ifdef ADS_POLLING
+		uint32_t curTime = micros();
+		while( micros()-curTime < m_conversionDelay_us );
+	#else
+		do {
+			delay(0);            // delay(0) causes a yeild for ESP8266
+		}
+		while (ADS1X15_REG_CONFIG_OS_BUSY == (readRegister(m_i2cAddress, ADS1X15_REG_POINTER_CONFIG) & ADS1X15_REG_CONFIG_OS_MASK));
+		// Stop when the config register OS bit changes to 1
+	#endif
 }
 
 /**************************************************************************/
@@ -617,80 +662,105 @@ void Adafruit_ADS1015::waitForConversion()
 /**************************************************************************/
 int16_t Adafruit_ADS1015::getLastConversionResults()
 {
-  // Read the conversion results
-  uint16_t res = readRegister(m_i2cAddress, ADS1X15_REG_POINTER_CONVERT) >> m_bitShift;
-  if (m_bitShift == ADS1115_CONV_REG_BIT_SHIFT_0)            // for ADS1115
-  {
-    return (int16_t)res;
-  }
-  else
-  {
-    // Shift 12-bit results right 4 bits for the ADS1015,
+	// Read the conversion results
+	uint16_t res = readRegister(m_i2cAddress, ADS1X15_REG_POINTER_CONVERT) >> getBitShift();
+
+// Shift 12-bit results right 4 bits for the ADS1015,
     // making sure we keep the sign bit intact
     if (res > 0x07FF)
     {
-      // negative number - extend the sign to 16th bit
-      res |= 0xF000;
+		// negative number - extend the sign to 16th bit
+		res |= 0xF000;
     }
     return (int16_t)res;
-  }
+}
+
+/**************************************************************************/
+/*!
+    @brief  This function reads the last conversion
+            results without changing the config value.
+
+			After the comparator triggers, in order to clear the comparator,
+			we need to read the conversion results.
+*/
+/**************************************************************************/
+int16_t Adafruit_ADS1115::getLastConversionResults()
+{
+	// Read the conversion results
+	uint16_t res = readRegister(m_i2cAddress, ADS1X15_REG_POINTER_CONVERT) >> getBitShift();
+	return (int16_t)res;
 }
 
 /**************************************************************************/
 /*!
     @brief  Return the volts per bit for based on gain.  Multiply the adc
-            reading by the value returned here to get actual volts. 
+            reading by the value returned here to get actual volts.
 */
 /**************************************************************************/
 float Adafruit_ADS1015::voltsPerBit()
 {
-	float v = 0;
-	if (m_bitShift == ADS1015_CONV_REG_BIT_SHIFT_4) {            // for ADS1015
-	  switch (m_gain)
-	  {
-		case (GAIN_TWOTHIRDS):
-		  v = ADS1015_VOLTS_PER_BIT_GAIN_TWOTHIRDS;
-		  break;
-		case (GAIN_ONE):
-		  v = ADS1015_VOLTS_PER_BIT_GAIN_ONE;
-		  break;
-		 case (GAIN_TWO):
-		  v = ADS1015_VOLTS_PER_BIT_GAIN_TWO;
-		  break;
-		case (GAIN_FOUR):
-		  v = ADS1015_VOLTS_PER_BIT_GAIN_FOUR;
-		  break;
-		case (GAIN_EIGHT):
-		  v = ADS1015_VOLTS_PER_BIT_GAIN_EIGHT;
-		  break;
-		case (GAIN_SIXTEEN):
-		  v = ADS1015_VOLTS_PER_BIT_GAIN_SIXTEEN;
-		  break;
-	  }
-	} else                  // for ADS1115
-	{  
-	  switch (m_gain)
-	  {
-		case (GAIN_TWOTHIRDS):
-		  v = ADS1115_VOLTS_PER_BIT_GAIN_TWOTHIRDS;
-		  break;
-		case (GAIN_ONE):
-		  v = ADS1115_VOLTS_PER_BIT_GAIN_ONE;
-		  break;
-		 case (GAIN_TWO):
-		  v = ADS1115_VOLTS_PER_BIT_GAIN_TWO;
-		  break;
-		case (GAIN_FOUR):
-		  v = ADS1115_VOLTS_PER_BIT_GAIN_FOUR;
-		  break;
-		case (GAIN_EIGHT):
-		  v = ADS1115_VOLTS_PER_BIT_GAIN_EIGHT;
-		  break;
-		case (GAIN_SIXTEEN):
-		  v = ADS1115_VOLTS_PER_BIT_GAIN_SIXTEEN;
-		  break;
-	  }
-	}
-	return v;
+	static const float vpb[] PROGMEM = {ADS1015_VOLTS_PER_BIT_GAIN_TWOTHIRDS, ADS1015_VOLTS_PER_BIT_GAIN_ONE, ADS1015_VOLTS_PER_BIT_GAIN_TWO, ADS1015_VOLTS_PER_BIT_GAIN_FOUR, ADS1015_VOLTS_PER_BIT_GAIN_EIGHT, ADS1015_VOLTS_PER_BIT_GAIN_SIXTEEN};
+	return pgm_read_float_near(&vpb[m_gain >> 9]);
+//
+//	float v = 0;
+//	switch (m_gain)
+//	{
+//		case (GAIN_TWOTHIRDS):
+//		    v = ADS1015_VOLTS_PER_BIT_GAIN_TWOTHIRDS;
+//			break;
+//		case (GAIN_ONE):
+//			v = ADS1015_VOLTS_PER_BIT_GAIN_ONE;
+//			break;
+//		 case (GAIN_TWO):
+//			v = ADS1015_VOLTS_PER_BIT_GAIN_TWO;
+//			break;
+//		case (GAIN_FOUR):
+//			v = ADS1015_VOLTS_PER_BIT_GAIN_FOUR;
+//			break;
+//		case (GAIN_EIGHT):
+//			v = ADS1015_VOLTS_PER_BIT_GAIN_EIGHT;
+//			break;
+//		case (GAIN_SIXTEEN):
+//			v = ADS1015_VOLTS_PER_BIT_GAIN_SIXTEEN;
+//			break;
+//	}
+//	return v;
+}
+
+/**************************************************************************/
+/*!
+    @brief  Return the volts per bit for based on gain.  Multiply the adc
+            reading by the value returned here to get actual volts.
+*/
+/**************************************************************************/
+float Adafruit_ADS1115::voltsPerBit()
+{
+// The array version use 84 bytes less if compiled with -O0 (and 86 bytes less if compiled with -Os
+	static const float vpb[] PROGMEM = {ADS1115_VOLTS_PER_BIT_GAIN_TWOTHIRDS, ADS1115_VOLTS_PER_BIT_GAIN_ONE, ADS1115_VOLTS_PER_BIT_GAIN_TWO, ADS1115_VOLTS_PER_BIT_GAIN_FOUR, ADS1115_VOLTS_PER_BIT_GAIN_EIGHT, ADS1115_VOLTS_PER_BIT_GAIN_SIXTEEN};
+	return pgm_read_float_near(&vpb[m_gain >> 9]);
+
+//	float v = 0;
+//	switch (m_gain)
+//	{
+//		case (GAIN_TWOTHIRDS):
+//			v = ADS1115_VOLTS_PER_BIT_GAIN_TWOTHIRDS;
+//			break;
+//		case (GAIN_ONE):
+//			v = ADS1115_VOLTS_PER_BIT_GAIN_ONE;
+//			break;
+//		case (GAIN_TWO):
+//			v = ADS1115_VOLTS_PER_BIT_GAIN_TWO;
+//			break;
+//		case (GAIN_FOUR):
+//			v = ADS1115_VOLTS_PER_BIT_GAIN_FOUR;
+//			break;
+//		case (GAIN_EIGHT):
+//			v = ADS1115_VOLTS_PER_BIT_GAIN_EIGHT;
+//			break;
+//		case (GAIN_SIXTEEN):
+//			v = ADS1115_VOLTS_PER_BIT_GAIN_SIXTEEN;
+//			break;
+//	}
+//	return v;
 }
 
