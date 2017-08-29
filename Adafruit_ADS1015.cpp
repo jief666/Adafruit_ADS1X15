@@ -33,6 +33,11 @@
 		   Renamed constants that were common to both chips to ADS1X15....
 	v1.2.1 Modified by soligen2010. Removed explicit conversion delays and instead poll the config
 	       register by 1 ms intervals to check when conversion is complete
+	v1.2.2 Modified by jief666. Reintroduce polling if ADS_POLLING is defined (can be faster for fast data rate). Else, works like in v1.2.1
+           Replace switch case to save code size.
+           Replace m_bitShift testing by virtual method when differences between ADS1115 and ADS1015 are needed (m_bitShift removed).
+           Make 2 different types for SPS to prevent confusion at compile time.
+
 		   
 */
 /**************************************************************************/
